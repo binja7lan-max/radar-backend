@@ -1,5 +1,3 @@
-
-
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
@@ -33,6 +31,16 @@ module.exports = async (req, res) => {
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+    }
+
+    if (phone) {
+      if (!/^05\d{8}$/.test(phone)) {
+        return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
+      }
+      const dupPhone = await admin.firestore().collection('users').where('phone', '==', phone).limit(1).get();
+      if (!dupPhone.empty) {
+        return res.status(409).json({ error: 'رقم الجوال مستخدم مسبقاً' });
+      }
     }
 
     let userRecord;
