@@ -1,8 +1,15 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 const { sendMail } = require('../lib/mailer');
+const { verifyAuth } = require('../lib/auth');
+
+function escapeHTML(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function welcomeEmailHTML(name) {
+  name = escapeHTML(name);
   return `
   <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;max-width:480px;margin:0 auto;background:#f5f7fa;padding:24px;">
     <div style="background:#fff;border-radius:12px;padding:28px;">
@@ -26,15 +33,20 @@ function welcomeEmailHTML(name) {
   </div>`;
 }
 
+// ─── بريد ترحيبي تلقائي عند إنشاء حساب جديد (غير مرتبط بمصفوفة قنوات الإشعارات — يُرسل دائماً) ───
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const admin = getAdmin();
+    let decoded;
+    try { decoded = await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+
     const { uid } = req.body || {};
     if (!uid) return res.status(400).json({ error: 'uid مطلوب' });
+    if (decoded.uid !== uid) return res.status(403).json({ error: 'لا يمكنك تنفيذ هذا لمستخدم آخر' });
 
-    const admin = getAdmin();
     const userSnap = await admin.firestore().collection('users').doc(uid).get();
     if (!userSnap.exists) return res.status(200).json({ sent: false, reason: 'user-not-found' });
     const { email, name } = userSnap.data();
