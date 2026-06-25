@@ -1,8 +1,16 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 const { sendMail } = require('../lib/mailer');
+const { verifyAuth } = require('../lib/auth');
+
+function escapeHTML(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function wrapEmailHTML(title, body) {
+  title = escapeHTML(title);
+  body = escapeHTML(body);
   return `
   <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;max-width:480px;margin:0 auto;background:#f5f7fa;padding:24px;">
     <div style="background:#fff;border-radius:12px;padding:24px;">
@@ -16,15 +24,18 @@ function wrapEmailHTML(title, body) {
   </div>`;
 }
 
+// ─── إرسال إشعار بالبريد الإلكتروني — فقط إذا كانت القناة مفعّلة لهذا النوع من لوحة الأدمن ───
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const admin = getAdmin();
+    try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+
     const { userId, type, title, body } = req.body || {};
     if (!userId || !type) return res.status(400).json({ error: 'userId و type مطلوبان' });
 
-    const admin = getAdmin();
     const db = admin.firestore();
 
     const settingsSnap = await db.collection('settings').doc('notificationChannels').get();
