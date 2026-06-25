@@ -1,7 +1,6 @@
-
-
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
+const { verifyStaff } = require('../lib/auth');
 
 // ─── إرسال Push لعدة مستخدمين دفعة واحدة (الإشعارات الجماعية من لوحة الأدمن) ───
 module.exports = async (req, res) => {
@@ -9,12 +8,14 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const admin = getAdmin();
+    try { await verifyStaff(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+
     const { userIds, title, body, type } = req.body || {};
     if (!Array.isArray(userIds) || !userIds.length) {
       return res.status(400).json({ error: 'userIds مطلوب' });
     }
 
-    const admin = getAdmin();
     const db = admin.firestore();
 
     // جلب توكنات كل المستخدمين المستهدفين (بالتوازي على دفعات لتجنّب إغراق Firestore)
