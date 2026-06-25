@@ -1,7 +1,6 @@
-
-
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
+const { verifyAuth } = require('../lib/auth');
 
 // ─── إرسال Push لمستخدم معيّن (يُستدعى من المتصفح مباشرة بعد كتابة notifications/{id}) ───
 module.exports = async (req, res) => {
@@ -9,10 +8,12 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const admin = getAdmin();
+    try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+
     const { userId, title, body, type, data } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'userId مطلوب' });
 
-    const admin = getAdmin();
     const db = admin.firestore();
 
     const tokensSnap = await db.collection('users').doc(userId).collection('tokens').get();
