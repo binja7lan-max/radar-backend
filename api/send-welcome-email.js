@@ -47,9 +47,15 @@ module.exports = async (req, res) => {
     if (!uid) return res.status(400).json({ error: 'uid مطلوب' });
     if (decoded.uid !== uid) return res.status(403).json({ error: 'لا يمكنك تنفيذ هذا لمستخدم آخر' });
 
-    const userSnap = await admin.firestore().collection('users').doc(uid).get();
+    const db = admin.firestore();
+    const userSnap = await db.collection('users').doc(uid).get();
     if (!userSnap.exists) return res.status(200).json({ sent: false, reason: 'user-not-found' });
-    const { email, name } = userSnap.data();
+    const { name } = userSnap.data();
+    let email = userSnap.data().email || null;
+    if (!email) {
+      const privateSnap = await db.collection('users').doc(uid).collection('private').doc('contact').get();
+      email = privateSnap.exists ? privateSnap.data().email : null;
+    }
     if (!email) return res.status(200).json({ sent: false, reason: 'no-email' });
 
     await sendMail({ to: email, subject: `أهلاً بك في رادار، ${name || ''}`, html: welcomeEmailHTML(name) });
