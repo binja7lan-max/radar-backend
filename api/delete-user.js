@@ -1,5 +1,6 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
+const { deleteImages } = require('../lib/cloudinary');
 
 const SUPER_ADMIN_EMAIL = 'binja7lan@gmail.com';
 
@@ -55,8 +56,15 @@ module.exports = async (req, res) => {
 
     const deletedCounts = {};
 
+    // 0) جمع روابط الصور (الملف الشخصي والإعلانات) لحذفها فعلياً من Cloudinary بعد حذف المستندات
+    const userDataSnap = await db.collection('users').doc(uid).get();
+    const userImages = userDataSnap.exists
+      ? [userDataSnap.data().photoURL, userDataSnap.data().coverURL].filter(Boolean)
+      : [];
+
     // 1) الإعلانات
     const listingsSnap = await db.collection('listings').where('sellerId', '==', uid).get();
+    const listingImages = listingsSnap.docs.flatMap(d => d.data().images || []);
     deletedCounts.listings = await deleteAllDocs(db, listingsSnap.docs);
 
     // 2) الطلبات
@@ -109,6 +117,11 @@ module.exports = async (req, res) => {
     } catch (e) {
       if (e.code !== 'auth/user-not-found') throw e;
     }
+
+    // 9) حذف الصور فعلياً من Cloudinary (بعد نجاح حذف كل شيء من القاعدة)
+    const allImages = [...userImages, ...listingImages];
+    deletedCounts.images = allImages.length;
+    await deleteImages(allImages);
 
     return res.status(200).json({ success: true, deletedCounts });
   } catch (e) {
