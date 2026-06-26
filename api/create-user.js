@@ -53,8 +53,9 @@ module.exports = async (req, res) => {
       throw e;
     }
 
-    await admin.firestore().collection('users').doc(userRecord.uid).set({
-      name, email,
+    const db = admin.firestore();
+    await db.collection('users').doc(userRecord.uid).set({
+      name,
       phone: phone || '',
       city: city || 'الرياض',
       isDealer: !!isDealer,
@@ -64,6 +65,8 @@ module.exports = async (req, res) => {
       ratingAvg: 0, ratingCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    // البريد الإلكتروني يُخزَّن في مستند خاص غير مقروء علناً (يمنع جمعه بالجملة من خارج الموقع)
+    await db.collection('users').doc(userRecord.uid).collection('private').doc('contact').set({ email });
 
     return res.status(200).json({ uid: userRecord.uid, success: true });
   } catch (e) {
