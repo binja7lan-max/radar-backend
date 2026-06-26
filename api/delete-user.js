@@ -1,5 +1,3 @@
-
-
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
@@ -45,10 +43,14 @@ module.exports = async (req, res) => {
 
     const db = admin.firestore();
 
-    const targetSnap = await db.collection('users').doc(uid).get();
-    const targetData = targetSnap.exists ? targetSnap.data() : null;
-    if (targetData && targetData.email === SUPER_ADMIN_EMAIL) {
-      return res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن' });
+    // التحقق من البريد عبر Firebase Auth نفسه (موثوق دائماً)، لا من حقل قد لا يكون مخزّناً على المستند العام
+    try {
+      const targetAuthUser = await admin.auth().getUser(uid);
+      if (targetAuthUser.email === SUPER_ADMIN_EMAIL) {
+        return res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن' });
+      }
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
     }
 
     const deletedCounts = {};
@@ -93,6 +95,10 @@ module.exports = async (req, res) => {
     // 6) توكنات الإشعارات (Push)
     const tokensSnap = await db.collection('users').doc(uid).collection('tokens').get();
     deletedCounts.tokens = await deleteAllDocs(db, tokensSnap.docs);
+
+    // 6.1) المستندات الخاصة (البريد الإلكتروني)
+    const privateSnap = await db.collection('users').doc(uid).collection('private').get();
+    deletedCounts.private = await deleteAllDocs(db, privateSnap.docs);
 
     // 7) مستند المستخدم نفسه
     await db.collection('users').doc(uid).delete();
