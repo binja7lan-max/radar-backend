@@ -33,10 +33,16 @@ module.exports = async (req, res) => {
     const admin = getAdmin();
     try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
 
-    const { userId, type, title, body } = req.body || {};
-    if (!userId || !type) return res.status(400).json({ error: 'userId و type مطلوبان' });
+    const { notifId } = req.body || {};
+    if (!notifId) return res.status(400).json({ error: 'notifId مطلوب' });
 
     const db = admin.firestore();
+
+    // المحتوى يُجلب من مستند الإشعار نفسه (مرّ بقواعد التحقق من النوع/الطول في Firestore)
+    const notifSnap = await db.collection('notifications').doc(notifId).get();
+    if (!notifSnap.exists) return res.status(404).json({ error: 'الإشعار غير موجود' });
+    const { userId, type, title, body } = notifSnap.data();
+    if (!userId || !type) return res.status(400).json({ error: 'إشعار غير صالح' });
 
     const settingsSnap = await db.collection('settings').doc('notificationChannels').get();
     const channelsForType = settingsSnap.exists ? (settingsSnap.data()[type] || {}) : {};
@@ -45,7 +51,11 @@ module.exports = async (req, res) => {
     }
 
     const userSnap = await db.collection('users').doc(userId).get();
-    const email = userSnap.exists ? userSnap.data().email : null;
+    let email = userSnap.exists ? userSnap.data().email : null;
+    if (!email) {
+      const privateSnap = await db.collection('users').doc(userId).collection('private').doc('contact').get();
+      email = privateSnap.exists ? privateSnap.data().email : null;
+    }
     if (!email) return res.status(200).json({ sent: false, reason: 'no-email' });
 
     await sendMail({ to: email, subject: title || 'إشعار جديد من رادار', html: wrapEmailHTML(title || 'رادار', body || '') });
