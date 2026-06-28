@@ -38,6 +38,23 @@ module.exports = async (req, res) => {
     if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
 
     const admin = getAdmin();
+    const db = admin.firestore();
+
+    // حد بسيط لمنع إرهاق بريد شخص آخر برسائل إعادة تعيين متكررة: 3 طلبات كل 15 دقيقة لكل بريد
+    const RATE_WINDOW_MS = 15 * 60 * 1000;
+    const RATE_MAX = 3;
+    const rlRef = db.collection('rateLimits').doc('pwreset_' + email.trim().toLowerCase());
+    const rlSnap = await rlRef.get();
+    const now = Date.now();
+    if (rlSnap.exists && (now - rlSnap.data().windowStart) < RATE_WINDOW_MS) {
+      if (rlSnap.data().count >= RATE_MAX) {
+        return res.status(429).json({ error: 'محاولات كثيرة، حاول مرة أخرى بعد قليل' });
+      }
+      await rlRef.update({ count: admin.firestore.FieldValue.increment(1) });
+    } else {
+      await rlRef.set({ count: 1, windowStart: now });
+    }
+
     try {
       const link = await admin.auth().generatePasswordResetLink(email, {
         url: 'https://radarparts.net'
@@ -48,6 +65,7 @@ module.exports = async (req, res) => {
         html: resetEmailHTML(email, link)
       });
     } catch (e) {
+      // لا نُفشل الطلب أو نكشف تفاصيل الخطأ — فقط نتجاهل الإرسال إن لم يوجد الحساب
       console.error('send-password-reset inner error:', e.message);
     }
 
