@@ -138,6 +138,21 @@ module.exports = async (req, res) => {
       itemRef = db.collection(itemType === 'listing' ? 'listings' : 'requests').doc(itemId);
     }
 
+    // تحقق من الملكية قبل أي إجراء — يمنع أي مستخدم من تفعيل/حذف عنصر لا يملكه عبر تمرير itemId/convId تابع لشخص آخر
+    if (itemType === 'message') {
+      const convSnap = await db.collection('conversations').doc(convId).get();
+      const convData = convSnap.exists ? convSnap.data() : null;
+      if (!convData || (convData.buyerId !== decoded.uid && convData.sellerId !== decoded.uid)) {
+        return res.status(403).json({ error: 'غير مخوّل' });
+      }
+    } else {
+      const ownerField = itemType === 'listing' ? 'sellerId' : 'requesterId';
+      const itemSnap = await itemRef.get();
+      if (!itemSnap.exists || itemSnap.data()[ownerField] !== decoded.uid) {
+        return res.status(403).json({ error: 'غير مخوّل' });
+      }
+    }
+
     if (!matched) {
       // محتوى سليم — يُفعَّل الإعلان/الطلب الآن (الرسالة كانت ظاهرة بالفعل، لا حاجة لأي إجراء)
       if (itemType !== 'message') await itemRef.update({ status: 'active' });
