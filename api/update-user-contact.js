@@ -67,14 +67,18 @@ module.exports = async (req, res) => {
     }
 
     if (newPhone) {
-      if (!/^05\d{8}$/.test(newPhone)) {
+      // تطبيع رقم الجوال: إزالة أي رموز/مسافات، وإضافة الصفر الأول تلقائياً إذا أُدخل بدونه
+      let cleanPhone = String(newPhone).replace(/\D/g, '');
+      if (/^5\d{8}$/.test(cleanPhone)) cleanPhone = '0' + cleanPhone;
+      if (!/^05\d{8}$/.test(cleanPhone)) {
         return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
       }
-      const dup = await db.collection('users').where('phone', '==', newPhone).limit(1).get();
+      const dup = await db.collection('users').where('phone', '==', cleanPhone).limit(1).get();
       if (!dup.empty && dup.docs[0].id !== uid) {
         return res.status(409).json({ error: 'رقم الجوال مستخدم مسبقاً بحساب آخر' });
       }
-      await db.collection('users').doc(uid).update({ phone: newPhone });
+      await db.collection('users').doc(uid).update({ phone: cleanPhone });
+      result.normalizedPhone = cleanPhone;
     }
 
     return res.status(200).json({ success: true, ...result });
