@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'سوبر أدمن فقط يمكنه استيراد مستخدمين' });
     }
 
-    const { email, password, name, phone, city, isDealer, dealerBrands, verified } = req.body || {};
+    let { email, password, name, phone, city, isDealer, dealerBrands, verified } = req.body || {};
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'البريد، كلمة المرور، والاسم مطلوبة' });
     }
@@ -33,7 +33,10 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
     }
 
+    // تطبيع رقم الجوال: إزالة أي رموز/مسافات، وإضافة الصفر الأول تلقائياً إذا أُدخل بدونه
     if (phone) {
+      phone = String(phone).replace(/\D/g, '');
+      if (/^5\d{8}$/.test(phone)) phone = '0' + phone;
       if (!/^05\d{8}$/.test(phone)) {
         return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
       }
