@@ -1,10 +1,9 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
-// ─── تسجيل دفعة عمولة عبر التحويل البنكي (بإرفاق إثبات) — تبقى "قيد المراجعة" حتى يعتمدها الأدمن ───
-// يعمل لمستخدم مسجّل دخوله (يُربط بحسابه تلقائياً) أو لزائر غير مسجّل (يُطلب رقم جواله):
-// - إذا تطابق رقم الجوال مع مستخدم موجود: تُربط الدفعة بحسابه (يظهر له في سجله لاحقاً عند تسجيل الدخول)
-// - إذا لم يتطابق: تُسجَّل للأدمن فقط، موضّحاً أنها لمستخدم غير معروف
+// ─── تسجيل دفعة عمولة عبر التحويل البنكي، أو إرفاق/تحديث إثبات تحويل لدفعة مسجَّلة مسبقاً ───
+// التسجيل لا يتطلب إثبات تحويل إلزامياً — يمكن إرفاقه فوراً أو لاحقاً من "مدفوعاتي" (لذا دُمج المساران بنفس الملف)
+// المسار الأول (بلا paymentId): تسجيل دفعة جديدة. المسار الثاني (مع paymentId): إرفاق إثبات لدفعة موجودة.
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -12,11 +11,33 @@ module.exports = async (req, res) => {
   try {
     const admin = getAdmin();
     const db = admin.firestore();
+    const { paymentId } = req.body || {};
 
+    // ─── إرفاق/تحديث إثبات تحويل لدفعة موجودة مسبقاً — يتطلب تسجيل دخول، ومالك الدفعة نفسه فقط ───
+    if (paymentId) {
+      const { proofImageUrl } = req.body || {};
+      if (!proofImageUrl) return res.status(400).json({ error: 'رابط الإثبات مطلوب' });
+
+      const authHeader = req.headers.authorization || '';
+      const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      if (!idToken) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
+      let decoded;
+      try { decoded = await admin.auth().verifyIdToken(idToken); }
+      catch (e) { return res.status(401).json({ error: 'جلسة غير صالحة، سجّل الدخول مجدداً' }); }
+
+      const payRef = db.collection('commissionPayments').doc(paymentId);
+      const paySnap = await payRef.get();
+      if (!paySnap.exists) return res.status(404).json({ error: 'الدفعة غير موجودة' });
+      if (paySnap.data().userId !== decoded.uid) return res.status(403).json({ error: 'غير مخوّل' });
+
+      await payRef.update({ proofImageUrl, hasProof: true });
+      return res.status(200).json({ success: true });
+    }
+
+    // ─── تسجيل دفعة جديدة ───
     const { amountSAR, proofImageUrl, phone } = req.body || {};
     const amount = parseFloat(amountSAR);
     if (!amount || amount <= 0) return res.status(400).json({ error: 'قيمة البيع غير صحيحة' });
-    if (!proofImageUrl) return res.status(400).json({ error: 'إثبات التحويل مطلوب' });
 
     // تسجيل دخول اختياري — لا نرفض الطلب إذا لم يكن المستخدم مسجّلاً، لكن نتحقق من التوكن إن وُجد
     const authHeader = req.headers.authorization || '';
@@ -52,7 +73,8 @@ module.exports = async (req, res) => {
     const docRef = await db.collection('commissionPayments').add({
       amountSAR: amount,
       commissionAmount,
-      proofImageUrl,
+      proofImageUrl: proofImageUrl || null,
+      hasProof: !!proofImageUrl,
       userId, userName, phone: finalPhone,
       matchedExistingUser,
       status: 'pending',
