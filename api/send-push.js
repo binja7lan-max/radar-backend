@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 const { verifyAuth, verifyStaff } = require('../lib/auth');
@@ -12,7 +13,23 @@ module.exports = async (req, res) => {
   try {
     const admin = getAdmin();
     const db = admin.firestore();
-    const { notifId, userIds, title, body, type } = req.body || {};
+    const { notifId, userIds, title, body, type, action } = req.body || {};
+
+    // ─── توقيع رفع Cloudinary ────────────────────────────────────────────
+    if (action === 'sign-cloudinary') {
+      try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+      const timestamp = Math.round(Date.now() / 1000);
+      const folder = 'radar';
+      const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
+      const signature = crypto.createHash('sha256')
+        .update(paramsToSign + process.env.CLOUDINARY_API_SECRET)
+        .digest('hex');
+      return res.status(200).json({
+        timestamp, signature, folder,
+        api_key:    process.env.CLOUDINARY_API_KEY,
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME
+      });
+    }
 
     if (Array.isArray(userIds) && userIds.length) {
       // ─── المسار الجماعي ───
