@@ -55,6 +55,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ success: true, notified });
   } catch (e) {
     console.error('check-expiring error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };

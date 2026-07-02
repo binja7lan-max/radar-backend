@@ -29,6 +29,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ success: true, migrated, skipped, total: usersSnap.size });
   } catch (e) {
     console.error('migrate-emails-private error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };

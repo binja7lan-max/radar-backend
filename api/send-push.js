@@ -148,6 +148,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ sent: response.successCount, failed: response.failureCount });
   } catch (e) {
     console.error('send-push error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };

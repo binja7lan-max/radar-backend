@@ -74,6 +74,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ uid: userRecord.uid, success: true });
   } catch (e) {
     console.error('create-user error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };

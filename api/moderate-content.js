@@ -193,6 +193,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ violation: true, severity: matched.severity });
   } catch (e) {
     console.error('moderate-content error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };

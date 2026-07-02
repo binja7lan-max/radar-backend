@@ -219,6 +219,6 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'type غير صالح' });
   } catch (e) {
     console.error('send-email error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };
