@@ -1,36 +1,47 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
-// Rate limiter: حد أقصى 5 طلبات / دقيقة لكل IP
-const _rl = new Map();
-function isRateLimited(ip) {
+// حد: 10 طلبات كل 60 ثانية لكل IP
+const RATE_LIMIT = 10;
+const WINDOW_MS = 60 * 1000;
+
+async function checkRateLimit(db, ip) {
+  const key = 'phone_lookup_' + ip.replace(/[.:]/g, '_');
+  const ref = db.collection('rateLimits').doc(key);
+  const snap = await ref.get();
   const now = Date.now();
-  const e = _rl.get(ip);
-  if (!e || now - e.t > 60_000) { _rl.set(ip, { t: now, n: 1 }); return false; }
-  if (e.n >= 5) return true;
-  e.n++;
-  return false;
+  if (snap.exists) {
+    const { count, windowStart } = snap.data();
+    if (now - windowStart < WINDOW_MS) {
+      if (count >= RATE_LIMIT) return false;
+      await ref.update({ count: count + 1 });
+    } else {
+      await ref.set({ count: 1, windowStart: now });
+    }
+  } else {
+    await ref.set({ count: 1, windowStart: now });
+  }
+  return true;
 }
 
 // ─── تحويل رقم جوال إلى البريد المرتبط به (لتسجيل الدخول برقم الجوال) ───
-// بدون تسجيل دخول مسبق عمداً (المستخدم لم يدخل بعد) — لكن لا يكشف إلا بريد رقم جوال محدد
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-  if (isRateLimited(ip)) {
-    return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });
-  }
-
   try {
     const admin = getAdmin();
+    const db = admin.firestore();
     const { phone } = req.body || {};
     if (!phone) return res.status(400).json({ error: 'رقم الجوال مطلوب' });
 
-    const db = admin.firestore();
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+    let allowed = true;
+    try { allowed = await checkRateLimit(db, ip); } catch (_) {}
+    if (!allowed) return res.status(429).json({ error: 'محاولات كثيرة، انتظر دقيقة ثم أعد المحاولة' });
+
     const snap = await db.collection('users').where('phone', '==', phone).limit(1).get();
-    // نرجّع دائماً 200 لمنع enumeration attack (معرفة هل رقم جوال مسجّل أم لا)
+    // نرجّع 200 دائماً لمنع استنتاج وجود الرقم من كود الحالة
     if (snap.empty) return res.status(200).json({ email: null });
 
     const uid = snap.docs[0].id;
@@ -42,6 +53,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ email });
   } catch (e) {
     console.error('lookup-email-by-phone error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'حدث خطأ داخلي' });
   }
 };
