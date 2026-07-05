@@ -17,7 +17,20 @@ module.exports = async (req, res) => {
 
     // ─── توقيع رفع Cloudinary ────────────────────────────────────────────────
     if (action === 'sign-cloudinary') {
-      try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+      let decoded;
+      try { decoded = await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+      // حد: 20 توقيع كل ساعة لكل مستخدم لمنع رفع صور كثيرة على حساب Cloudinary
+      const rlRef = db.collection('rateLimits').doc(`cloudsign_${decoded.uid}`);
+      const rlSnap = await rlRef.get();
+      const now = Date.now();
+      const WINDOW_MS = 60 * 60 * 1000;
+      const MAX_SIGNS = 20;
+      if (rlSnap.exists && (now - rlSnap.data().windowStart) < WINDOW_MS) {
+        if (rlSnap.data().count >= MAX_SIGNS) return res.status(429).json({ error: 'تجاوزت الحد المسموح من رفع الصور، حاول بعد ساعة' });
+        await rlRef.update({ count: admin.firestore.FieldValue.increment(1) });
+      } else {
+        await rlRef.set({ count: 1, windowStart: now });
+      }
       const timestamp = Math.round(Date.now() / 1000);
       const isRaw = req.body?.resourceType === 'raw';
       const folder = isRaw ? 'radar/docs' : 'radar';
