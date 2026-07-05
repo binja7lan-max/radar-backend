@@ -41,15 +41,19 @@ module.exports = async (req, res) => {
     if (!allowed) return res.status(429).json({ error: 'محاولات كثيرة، انتظر دقيقة ثم أعد المحاولة' });
 
     const snap = await db.collection('users').where('phone', '==', phone).limit(1).get();
-    // نرجّع 200 دائماً لمنع استنتاج وجود الرقم من كود الحالة
     if (snap.empty) return res.status(200).json({ email: null });
 
-    const uid = snap.docs[0].id;
-    let email = snap.docs[0].data().email || null;
+    const docData = snap.docs[0].data();
+    let email = docData.email || null;
+
     if (!email) {
-      const privateSnap = await db.collection('users').doc(uid).collection('private').doc('contact').get();
-      email = privateSnap.exists ? privateSnap.data().email : null;
+      const uid = snap.docs[0].id;
+      try {
+        const userRecord = await admin.auth().getUser(uid);
+        email = userRecord.email || null;
+      } catch (_) {}
     }
+
     return res.status(200).json({ email });
   } catch (e) {
     console.error('lookup-email-by-phone error:', e);
