@@ -1,6 +1,7 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
+// حد: 10 طلبات كل 60 ثانية لكل IP
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60 * 1000;
 
@@ -23,6 +24,7 @@ async function checkRateLimit(db, ip) {
   return true;
 }
 
+// ─── تحويل رقم جوال إلى البريد المرتبط به (لتسجيل الدخول برقم الجوال) ───
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -39,9 +41,17 @@ module.exports = async (req, res) => {
     if (!allowed) return res.status(429).json({ error: 'محاولات كثيرة، انتظر دقيقة ثم أعد المحاولة' });
 
     const phoneIndexSnap = await db.collection('phoneIndex').doc(phone).get();
-    if (!phoneIndexSnap.exists) return res.status(200).json({ email: null });
 
-    const uid = phoneIndexSnap.data().uid;
+    let uid;
+    if (phoneIndexSnap.exists) {
+      uid = phoneIndexSnap.data().uid;
+    } else {
+      // fallback للمستخدمين القدامى الذين جوالهم مخزّن في المستند العام users
+      const usersSnap = await db.collection('users').where('phone', '==', phone).limit(1).get();
+      if (usersSnap.empty) return res.status(200).json({ email: null });
+      uid = usersSnap.docs[0].id;
+    }
+
     try {
       const userRecord = await admin.auth().getUser(uid);
       return res.status(200).json({ email: userRecord.email || null });
