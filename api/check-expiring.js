@@ -13,7 +13,7 @@ function isExpired(item) {
 // ─── يُستدعى يومياً عبر Vercel Cron — يفحص الإعلانات/الطلبات التي انتهت صلاحيتها للتو ويُنشئ إشعاراً داخلياً لصاحبها مرة واحدة فقط ───
 module.exports = async (req, res) => {
   const authHeader = req.headers.authorization || '';
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
