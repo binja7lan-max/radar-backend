@@ -70,6 +70,17 @@ module.exports = async (req, res) => {
     const db = admin.firestore();
     const { action } = req.body || {};
 
+    // مسار تعيين Custom Claims للسوبر أدمن (يُستدعى مرة واحدة عند الإعداد)
+    if (action === 'setAdminClaims') {
+      const secret = req.headers['x-admin-secret'];
+      if (!process.env.ADMIN_TOOLS_SECRET || secret !== process.env.ADMIN_TOOLS_SECRET) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      await admin.auth().setCustomUserClaims(SUPER_ADMIN_UID, { superAdmin: true });
+      await admin.auth().revokeRefreshTokens(SUPER_ADMIN_UID);
+      return res.status(200).json({ success: true, message: 'Custom claims set. Please sign out and sign in again.' });
+    }
+
     // مسار حذف جميع المستخدمين التجريبيين
     if (action === 'purgeAllTestUsers') {
       const authHeader = req.headers.authorization || '';
