@@ -20,7 +20,7 @@ async function deleteAllDocs(db, docs) {
 
 // ─── حذف جميع المستخدمين التجريبيين دفعة واحدة (سوبر أدمن فقط — غير قابل للتراجع) ───
 async function handlePurgeAll(req, res, admin, db) {
-  const collectionsToWipe = ['listings', 'requests', 'conversations', 'ratings', 'notifications', 'rateLimits', 'moderationLog', 'phoneIndex'];
+  const collectionsToWipe = ['listings', 'requests', 'conversations', 'ratings', 'notifications', 'rateLimits', 'moderationLog', 'phoneIndex', 'commissionPayments', 'payments'];
 
   // حذف مجموعات كاملة (الإعلانات، المحادثات، إلخ)
   for (const col of collectionsToWipe) {
