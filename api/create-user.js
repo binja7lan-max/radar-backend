@@ -3,7 +3,6 @@ const { applyCors } = require('../lib/cors');
 
 const SUPER_ADMIN_EMAIL = 'binja7lan@gmail.com';
 
-// ─── استيراد مستخدم جديد (سوبر أدمن فقط) — يُنشئ حساب Auth + مستند Firestore ──
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -33,7 +32,6 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'كلمة المرور 8 أحرف على الأقل وتحتوي على رقم واحد على الأقل' });
     }
 
-    // تطبيع رقم الجوال
     if (phone) {
       phone = String(phone).replace(/\D/g, '');
       if (/^5\d{8}$/.test(phone)) phone = '0' + phone;
