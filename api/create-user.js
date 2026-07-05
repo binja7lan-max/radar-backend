@@ -40,8 +40,8 @@ module.exports = async (req, res) => {
       if (!/^05\d{8}$/.test(phone)) {
         return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
       }
-      const dupPhone = await admin.firestore().collection('users').where('phone', '==', phone).limit(1).get();
-      if (!dupPhone.empty) {
+      const dupPhone = await admin.firestore().collection('phoneIndex').doc(phone).get();
+      if (dupPhone.exists) {
         return res.status(409).json({ error: 'رقم الجوال مستخدم مسبقاً' });
       }
     }
@@ -59,7 +59,6 @@ module.exports = async (req, res) => {
     const db = admin.firestore();
     await db.collection('users').doc(userRecord.uid).set({
       name,
-      phone: phone || '',
       city: city || 'الرياض',
       isDealer: !!isDealer,
       dealerBrands: Array.isArray(dealerBrands) ? dealerBrands : [],
@@ -68,8 +67,10 @@ module.exports = async (req, res) => {
       ratingAvg: 0, ratingCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    // البريد الإلكتروني يُخزَّن في مستند خاص غير مقروء علناً (يمنع جمعه بالجملة من خارج الموقع)
-    await db.collection('users').doc(userRecord.uid).collection('private').doc('contact').set({ email });
+    // الهاتف والبريد في مستند خاص — لا يُكشفان لأي مستخدم آخر
+    await db.collection('users').doc(userRecord.uid).collection('private').doc('contact').set({ email, phone: phone || '' });
+    // فهرس الجوال للتحقق من التكرار فقط — لا يحتوي بيانات حساسة
+    if (phone) await db.collection('phoneIndex').doc(phone).set({ uid: userRecord.uid });
 
     return res.status(200).json({ uid: userRecord.uid, success: true });
   } catch (e) {
