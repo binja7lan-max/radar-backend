@@ -29,8 +29,8 @@ module.exports = async (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'البريد، كلمة المرور، والاسم مطلوبة' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+    if (password.length < 8 || !/\d/.test(password)) {
+      return res.status(400).json({ error: 'كلمة المرور 8 أحرف على الأقل وتحتوي على رقم واحد على الأقل' });
     }
 
     // تطبيع رقم الجوال: إزالة أي رموز/مسافات، وإضافة الصفر الأول تلقائياً إذا أُدخل بدونه
