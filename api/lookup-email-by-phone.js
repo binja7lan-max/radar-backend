@@ -1,7 +1,6 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 
-// حد: 10 طلبات كل 60 ثانية لكل IP
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60 * 1000;
 
@@ -24,7 +23,6 @@ async function checkRateLimit(db, ip) {
   return true;
 }
 
-// ─── تحويل رقم جوال إلى البريد المرتبط به (لتسجيل الدخول برقم الجوال) ───
 module.exports = async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
