@@ -29,8 +29,8 @@ module.exports = async (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'البريد، كلمة المرور، والاسم مطلوبة' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'كلمة المرور 6 أحرف على الأقل' });
+    if (password.length < 8 || !/\d/.test(password)) {
+      return res.status(400).json({ error: 'كلمة المرور 8 أحرف على الأقل وتحتوي على رقم واحد على الأقل' });
     }
 
     // تطبيع رقم الجوال
@@ -39,6 +39,10 @@ module.exports = async (req, res) => {
       if (/^5\d{8}$/.test(phone)) phone = '0' + phone;
       if (!/^05\d{8}$/.test(phone)) {
         return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
+      }
+      const dupPhone = await admin.firestore().collection('phoneIndex').doc(phone).get();
+      if (dupPhone.exists) {
+        return res.status(409).json({ error: 'رقم الجوال مستخدم مسبقاً' });
       }
     }
 
@@ -60,10 +64,11 @@ module.exports = async (req, res) => {
       dealerBrands: Array.isArray(dealerBrands) ? dealerBrands : [],
       verified: !!verified,
       banned: false,
-      phone: phone || '',
       ratingAvg: 0, ratingCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    await db.collection('users').doc(userRecord.uid).collection('private').doc('contact').set({ email, phone: phone || '' });
+    if (phone) await db.collection('phoneIndex').doc(phone).set({ uid: userRecord.uid });
 
     return res.status(200).json({ uid: userRecord.uid, success: true });
   } catch (e) {
