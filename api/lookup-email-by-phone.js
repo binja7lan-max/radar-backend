@@ -40,21 +40,16 @@ module.exports = async (req, res) => {
     try { allowed = await checkRateLimit(db, ip); } catch (_) {}
     if (!allowed) return res.status(429).json({ error: 'محاولات كثيرة، انتظر دقيقة ثم أعد المحاولة' });
 
-    const snap = await db.collection('users').where('phone', '==', phone).limit(1).get();
-    if (snap.empty) return res.status(200).json({ email: null });
+    const phoneIndexSnap = await db.collection('phoneIndex').doc(phone).get();
+    if (!phoneIndexSnap.exists) return res.status(200).json({ email: null });
 
-    const docData = snap.docs[0].data();
-    let email = docData.email || null;
-
-    if (!email) {
-      const uid = snap.docs[0].id;
-      try {
-        const userRecord = await admin.auth().getUser(uid);
-        email = userRecord.email || null;
-      } catch (_) {}
+    const uid = phoneIndexSnap.data().uid;
+    try {
+      const userRecord = await admin.auth().getUser(uid);
+      return res.status(200).json({ email: userRecord.email || null });
+    } catch (_) {
+      return res.status(200).json({ email: null });
     }
-
-    return res.status(200).json({ email });
   } catch (e) {
     console.error('lookup-email-by-phone error:', e);
     return res.status(500).json({ error: 'حدث خطأ داخلي' });
