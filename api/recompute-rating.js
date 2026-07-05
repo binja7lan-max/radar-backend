@@ -17,6 +17,16 @@ module.exports = async (req, res) => {
     if (!ratedId) return res.status(400).json({ error: 'ratedId مطلوب' });
 
     const db = admin.firestore();
+
+    // حد: مرة واحدة كل دقيقتين لكل (caller, ratedId) لمنع استدعاء متكرر كـ DoS مالي
+    const rlKey = `recompute_${decoded.uid}_${ratedId}`;
+    const rlRef = db.collection('rateLimits').doc(rlKey);
+    const rlSnap = await rlRef.get();
+    const now = Date.now();
+    if (rlSnap.exists && (now - rlSnap.data().lastAt) < 2 * 60 * 1000) {
+      return res.status(429).json({ error: 'حاول مرة أخرى بعد قليل' });
+    }
+    await rlRef.set({ lastAt: now });
     const snap = await db.collection('ratings').where('ratedId', '==', ratedId).get();
     const scores = snap.docs.filter(d => !d.data().hidden).map(d => d.data().score || 0);
     const ratingCount = scores.length;
