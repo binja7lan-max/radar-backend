@@ -1,27 +1,27 @@
 const HANDLERS = {
-  'add-changelog-entry': '../handlers/add-changelog-entry',
-  'check-expiring': '../handlers/check-expiring',
-  'create-user': '../handlers/create-user',
-  'delete-user': '../handlers/delete-user',
-  'extract-vin': '../handlers/extract-vin',
-  'lookup-email-by-phone': '../handlers/lookup-email-by-phone',
-  'migrate-emails-private': '../handlers/migrate-emails-private',
-  'moderate-content': '../handlers/moderate-content',
-  'notify-matching-dealers': '../handlers/notify-matching-dealers',
-  'paypal-capture-order': '../handlers/paypal-capture-order',
-  'paypal-create-order': '../handlers/paypal-create-order',
-  'recompute-rating': '../handlers/recompute-rating',
-  'record-commission-payment': '../handlers/record-commission-payment',
-  'request-dealer-candidates': '../handlers/request-dealer-candidates',
-  'send-email': '../handlers/send-email',
-  'send-push': '../handlers/send-push',
-  'set-claims': '../handlers/set-claims',
-  'update-my-phone': '../handlers/update-my-phone',
-  'update-user-contact': '../handlers/update-user-contact',
-  'wa-job-status': '../handlers/wa-job-status',
-  'wa-send': '../handlers/wa-send',
-  'wa-session': '../handlers/wa-session',
-  'whatsapp-session': '../handlers/whatsapp-session',
+  'add-changelog-entry': () => require('../handlers/add-changelog-entry'),
+  'check-expiring': () => require('../handlers/check-expiring'),
+  'create-user': () => require('../handlers/create-user'),
+  'delete-user': () => require('../handlers/delete-user'),
+  'extract-vin': () => require('../handlers/extract-vin'),
+  'lookup-email-by-phone': () => require('../handlers/lookup-email-by-phone'),
+  'migrate-emails-private': () => require('../handlers/migrate-emails-private'),
+  'moderate-content': () => require('../handlers/moderate-content'),
+  'notify-matching-dealers': () => require('../handlers/notify-matching-dealers'),
+  'paypal-capture-order': () => require('../handlers/paypal-capture-order'),
+  'paypal-create-order': () => require('../handlers/paypal-create-order'),
+  'recompute-rating': () => require('../handlers/recompute-rating'),
+  'record-commission-payment': () => require('../handlers/record-commission-payment'),
+  'request-dealer-candidates': () => require('../handlers/request-dealer-candidates'),
+  'send-email': () => require('../handlers/send-email'),
+  'send-push': () => require('../handlers/send-push'),
+  'set-claims': () => require('../handlers/set-claims'),
+  'update-my-phone': () => require('../handlers/update-my-phone'),
+  'update-user-contact': () => require('../handlers/update-user-contact'),
+  'wa-job-status': () => require('../handlers/wa-job-status'),
+  'wa-send': () => require('../handlers/wa-send'),
+  'wa-session': () => require('../handlers/wa-session'),
+  'whatsapp-session': () => require('../handlers/whatsapp-session'),
 };
 
 function resolveHandlerName(req) {
@@ -35,12 +35,12 @@ function resolveHandlerName(req) {
 
 module.exports = async (req, res) => {
   const name = resolveHandlerName(req);
-  const handlerPath = HANDLERS[name];
+  const loadHandler = HANDLERS[name];
 
-  if (!handlerPath) {
+  if (!loadHandler) {
     return res.status(404).json({ error: 'Not found', path: `/api/${name || ''}` });
   }
 
-  const handler = require(handlerPath);
+  const handler = loadHandler();
   return handler(req, res);
 };
