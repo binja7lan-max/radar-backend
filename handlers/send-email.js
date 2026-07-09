@@ -3,6 +3,10 @@ const { applyCors } = require('../lib/cors');
 const { sendMail } = require('../lib/mailer');
 const { verifyAuth } = require('../lib/auth');
 
+// ─── كل رسائل البريد المُرسلة من الباك إند مجمَّعة في ملف واحد (دُمجت 4 ملفات سابقة لتقليل عدد ملفات
+// API تحت حد خطة Vercel المجانية: welcome / notification / password-reset / verification) ───
+// نوع الرسالة يُحدَّد بحقل "type" في جسم الطلب — كل نوع يحتفظ بنفس منطقه ومتطلبات التحقق الأصلية كاملة
+
 function escapeHTML(str) {
   if (str == null) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -116,6 +120,7 @@ async function handleNotification(req, res, admin, db) {
   const { notifId } = req.body || {};
   if (!notifId) return res.status(400).json({ error: 'notifId مطلوب' });
 
+  // المحتوى يُجلب من مستند الإشعار نفسه (مرّ بقواعد التحقق من النوع/الطول في Firestore)
   const notifSnap = await db.collection('notifications').doc(notifId).get();
   if (!notifSnap.exists) return res.status(404).json({ error: 'الإشعار غير موجود' });
   const { userId, type: notifType, title, body } = notifSnap.data();
@@ -139,10 +144,12 @@ async function handleNotification(req, res, admin, db) {
   return res.status(200).json({ sent: true });
 }
 
+// لا يكشف أبداً إن كان البريد مسجّلاً أم لا — يرجع نجاحاً دائماً لمنع استكشاف الحسابات المسجّلة
 async function handlePasswordReset(req, res, admin, db) {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ error: 'البريد الإلكتروني مطلوب' });
 
+  // حد بسيط لمنع إرهاق بريد شخص آخر برسائل إعادة تعيين متكررة: 3 طلبات كل 15 دقيقة لكل بريد
   const RATE_WINDOW_MS = 15 * 60 * 1000;
   const RATE_MAX = 3;
   const rlRef = db.collection('rateLimits').doc('pwreset_' + email.trim().toLowerCase());
@@ -159,12 +166,14 @@ async function handlePasswordReset(req, res, admin, db) {
 
   try {
     const firebaseLink = await admin.auth().generatePasswordResetLink(email, { url: 'https://radarparts.net' });
+    // استخراج oobCode وتوجيه الرابط لرادار مباشرة بدل صفحة Firebase الافتراضية
     const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
     const link = oobCode
       ? `https://radarparts.net/?mode=resetPassword&oobCode=${encodeURIComponent(oobCode)}`
       : firebaseLink;
     await sendMail({ to: email, subject: 'تعيين كلمة المرور في رادار', html: resetEmailHTML(email, link) });
   } catch (e) {
+    // لا نُفشل الطلب أو نكشف تفاصيل الخطأ — فقط نتجاهل الإرسال إن لم يوجد الحساب
     console.error('send-email password-reset inner error:', e.message);
   }
   return res.status(200).json({ success: true });
@@ -177,6 +186,7 @@ async function handleVerification(req, res, admin, db) {
   if (!decoded.email) return res.status(400).json({ error: 'لا يوجد بريد إلكتروني مرتبط بهذا الحساب' });
   if (decoded.email_verified) return res.status(200).json({ success: true, alreadyVerified: true });
 
+  // حد بسيط لمنع إعادة الإرسال المتكرر: مرة واحدة كل دقيقتين لكل مستخدم
   const rlRef = db.collection('rateLimits').doc('verifyemail_' + decoded.uid);
   const rlSnap = await rlRef.get();
   const now = Date.now();

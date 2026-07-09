@@ -3,9 +3,12 @@
 دوال خلفية تستبدل Firebase Cloud Functions (التي تعثّر نشرها بسبب متطلبات خطة Blaze والسجل التجاري). تعمل على Vercel مجاناً بالكامل، بدون بطاقة ائتمان أو سجل تجاري.
 
 ## الوظائف
-- `api/send-push.js` — إرسال إشعار Push لمستخدم واحد (يُستدعى من المتصفح بعد كتابة كل إشعار داخلي).
-- `api/send-push-bulk.js` — إرسال Push لعدة مستخدمين (الإشعارات الجماعية من لوحة الأدمن).
-- `api/create-user.js` — إنشاء حساب مستخدم جديد بالكامل (تسجيل دخول حقيقي) — سوبر أدمن فقط.
+خطة Vercel Hobby تسمح بحد أقصى 12 Serverless Functions لكل نشر. لذلك يستخدم هذا المشروع Function واحدة فقط:
+
+- `api/[...path].js` — dispatcher عام يحافظ على نفس روابط `/api/*`.
+- `handlers/*.js` — منطق كل endpoint الفعلي.
+
+أمثلة: `/api/send-email` يمر عبر `api/[...path].js` ثم ينفذ `handlers/send-email.js`.
 
 ## خطوات النشر (مرة واحدة فقط)
 
@@ -16,7 +19,7 @@
 
 ### 2) رفع هذا المجلد إلى GitHub
 1. أنشئ مستودع (Repository) جديد على GitHub (خاص أو عام، لا فرق) — مثلاً باسم `radar-backend`.
-2. داخل المستودع: **Add file → Upload files** → اسحب كل ملفات هذا المجلد (`vercel-backend/`) بداخله (محتوى المجلد فقط، وليس المجلد نفسه — أي `api/`, `lib/`, `package.json`, `.gitignore` تكون في جذر المستودع).
+2. داخل المستودع: **Add file → Upload files** → اسحب كل ملفات هذا المجلد (`vercel-backend/`) بداخله (محتوى المجلد فقط، وليس المجلد نفسه — أي `api/`, `handlers/`, `lib/`, `package.json`, `.gitignore` تكون في جذر المستودع).
 3. Commit.
 
 ### 3) ربط المستودع بـ Vercel

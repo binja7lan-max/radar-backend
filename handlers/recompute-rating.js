@@ -11,7 +11,8 @@ module.exports = async (req, res) => {
 
   try {
     const admin = getAdmin();
-    try { await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
+    let decoded;
+    try { decoded = await verifyAuth(req, admin); } catch (e) { return res.status(e.status || 401).json({ error: e.message }); }
 
     const { ratedId } = req.body || {};
     if (!ratedId) return res.status(400).json({ error: 'ratedId مطلوب' });

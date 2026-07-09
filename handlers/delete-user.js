@@ -2,8 +2,7 @@ const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 const { deleteImages } = require('../lib/cloudinary');
 
-const SUPER_ADMIN_EMAIL = 'binja7lan@gmail.com';
-const SUPER_ADMIN_UID  = 'laNUAfdtndMgGJ65IX1hWVd3UKp2';
+const SUPER_ADMIN_UID = 'laNUAfdtndMgGJ65IX1hWVd3UKp2';
 
 // يحذف كل مستندات نتيجة استعلام على دفعات (حد الدفعة في Firestore هو 500 عملية)
 async function deleteAllDocs(db, docs) {
@@ -101,7 +100,7 @@ module.exports = async (req, res) => {
     } catch (e) {
       return res.status(401).json({ error: 'جلسة غير صالحة، سجّل الدخول مجدداً' });
     }
-    if (decoded.email !== SUPER_ADMIN_EMAIL) {
+    if (decoded.uid !== SUPER_ADMIN_UID) {
       return res.status(403).json({ error: 'سوبر أدمن فقط يمكنه حذف المستخدمين نهائياً' });
     }
 
@@ -109,14 +108,9 @@ module.exports = async (req, res) => {
     if (!uid) return res.status(400).json({ error: 'uid مطلوب' });
 
 
-    // التحقق من البريد عبر Firebase Auth نفسه (موثوق دائماً)، لا من حقل قد لا يكون مخزّناً على المستند العام
-    try {
-      const targetAuthUser = await admin.auth().getUser(uid);
-      if (targetAuthUser.email === SUPER_ADMIN_EMAIL) {
-        return res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن' });
-      }
-    } catch (e) {
-      if (e.code !== 'auth/user-not-found') throw e;
+    // منع حذف السوبر أدمن — UID ثابت في كلتا البيئتين
+    if (uid === SUPER_ADMIN_UID) {
+      return res.status(403).json({ error: 'لا يمكن حذف حساب السوبر أدمن' });
     }
 
     const deletedCounts = {};

@@ -1,9 +1,7 @@
 const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
-const { verifyAuth } = require('../lib/auth');
+const { verifyAuth, SUPER_ADMIN_UID } = require('../lib/auth');
 const { sendMail } = require('../lib/mailer');
-
-const SUPER_ADMIN_EMAIL = 'binja7lan@gmail.com';
 const FLAG_THRESHOLD = 3; // عدد المخالفات قبل تقييد الحساب من النشر تلقائياً
 
 const CATEGORY_LABELS = { religion: 'الدين', politics: 'سيادة الدولة / أمر سياسي', bannedGoods: 'سلع ممنوعة' };
@@ -47,11 +45,14 @@ async function notifyAdmins(admin, db, payload) {
 
   if (!channels.inapp && !channels.email) return;
 
-  // المستلمون: السوبر أدمن + كل حساب أدمن مفعّل لديه صلاحية "الفلترة" في مصفوفة الصلاحيات
+  // المستلمون: السوبر أدمن (بـ UID الثابت) + كل حساب أدمن مفعّل لديه صلاحية "الفلترة"
   const recipients = [];
   try {
-    const superUserSnap = await db.collection('users').where('email', '==', SUPER_ADMIN_EMAIL).limit(1).get();
-    if (!superUserSnap.empty) recipients.push({ uid: superUserSnap.docs[0].id, email: SUPER_ADMIN_EMAIL });
+    const superSnap = await db.collection('users').doc(SUPER_ADMIN_UID).get();
+    if (superSnap.exists) {
+      const { email: superEmail } = superSnap.data();
+      if (superEmail) recipients.push({ uid: SUPER_ADMIN_UID, email: superEmail });
+    }
   } catch (e) { console.error('notifyAdmins super lookup error:', e.message); }
 
   try {

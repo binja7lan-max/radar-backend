@@ -2,6 +2,7 @@ const { getAdmin } = require('../lib/firebaseAdmin');
 const { applyCors } = require('../lib/cors');
 const { verifySuperAdmin } = require('../lib/auth');
 const { sendMail } = require('../lib/mailer');
+const { normalizeSaudiPhone } = require('../lib/validators');
 
 function verifyEmailHTML(name) {
   return `
@@ -67,17 +68,30 @@ module.exports = async (req, res) => {
     }
 
     if (newPhone) {
-      // تطبيع رقم الجوال: إزالة أي رموز/مسافات، وإضافة الصفر الأول تلقائياً إذا أُدخل بدونه
-      let cleanPhone = String(newPhone).replace(/\D/g, '');
-      if (/^5\d{8}$/.test(cleanPhone)) cleanPhone = '0' + cleanPhone;
-      if (!/^05\d{8}$/.test(cleanPhone)) {
+      const cleanPhone = normalizeSaudiPhone(newPhone);
+      if (!cleanPhone || !/^05\d{8}$/.test(cleanPhone)) {
         return res.status(400).json({ error: 'رقم الجوال غير صحيح — يجب أن يكون 10 خانات ويبدأ بـ 05' });
       }
-      const dup = await db.collection('users').where('phone', '==', cleanPhone).limit(1).get();
-      if (!dup.empty && dup.docs[0].id !== uid) {
+      // التحقق من التكرار عبر phoneIndex
+      const dupSnap = await db.collection('phoneIndex').doc(cleanPhone).get();
+      if (dupSnap.exists && dupSnap.data().uid !== uid) {
         return res.status(409).json({ error: 'رقم الجوال مستخدم مسبقاً بحساب آخر' });
       }
-      await db.collection('users').doc(uid).update({ phone: cleanPhone });
+      // قراءة الجوال القديم من private/contact لتنظيف phoneIndex
+      const oldContactSnap = await db.collection('users').doc(uid).collection('private').doc('contact').get();
+      const oldPhone = (oldContactSnap.exists ? oldContactSnap.data().phone : '') || '';
+      // Atomic batch: private/contact + phoneIndex
+      const phoneBatch = db.batch();
+      phoneBatch.set(
+        db.collection('users').doc(uid).collection('private').doc('contact'),
+        { phone: cleanPhone },
+        { merge: true }
+      );
+      if (oldPhone && oldPhone !== cleanPhone) {
+        phoneBatch.delete(db.collection('phoneIndex').doc(oldPhone));
+      }
+      phoneBatch.set(db.collection('phoneIndex').doc(cleanPhone), { uid });
+      await phoneBatch.commit();
       result.normalizedPhone = cleanPhone;
     }
 
